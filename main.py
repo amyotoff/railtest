@@ -31,8 +31,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # Основная функция для запуска бота
 def main():
     # Замени на свой Telegram Bot Token
-    TELEGRAM_BOT_TOKEN = "1190854549:AAFMDjUG89f3WOnBCDlXiVQlxCtwmbsLGZ4
-"
+    TELEGRAM_BOT_TOKEN = "1190854549:AAFMDjUG89f3WOnBCDlXiVQlxCtwmbsLGZ4"
+
 
     # Создание бота
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
