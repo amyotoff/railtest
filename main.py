@@ -1,50 +1,54 @@
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
-import openai
 import os
+import openai
+from telegram import Update
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    filters,
+    ContextTypes
+)
 
-# Установи ключ OpenAI API
+# Подгружаем ключи из переменных окружения
 openai.api_key = os.getenv("OPENAI_API_KEY")
-
-# Telegram Bot Token
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
+# Проверяем, что переменные окружения установлены
 if not TELEGRAM_BOT_TOKEN:
-    raise ValueError("TELEGRAM_BOT_TOKEN отсутствует или пуст. Проверь настройки.")
-
+    raise ValueError("TELEGRAM_BOT_TOKEN отсутствует или пуст. Проверь настройки Railway.")
 if not openai.api_key:
-    raise ValueError("OPENAI_API_KEY отсутствует или пуст. Проверь настройки.")
+    raise ValueError("OPENAI_API_KEY отсутствует или пуст. Проверь настройки Railway.")
 
-# Функция для обработки команды /start
+# Обработчик команды /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Привет! Я тестовый бот. Напиши что-нибудь!")
 
-# Функция для обработки текстовых сообщений
+# Обработчик текстовых сообщений
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
-
     try:
-        # Отправка запроса к OpenAI API
+        # Запрос к OpenAI ChatCompletion
         response = openai.ChatCompletion.create(
-            model="gpt-4-turbo",
-            messages=[{"role": "user", "content": user_message}],
+            model="gpt-4",  # Или "gpt-3.5-turbo", если GPT-4 недоступен
+            messages=[{"role": "user", "content": user_message}]
         )
-        bot_reply = response['choices'][0]['message']['content']
+        bot_reply = response["choices"][0]["message"]["content"]
         await update.message.reply_text(bot_reply)
     except Exception as e:
+        print(f"OpenAI Error: {e}")
         await update.message.reply_text("Что-то пошло не так. Попробуем позже.")
-        print(f"Error: {e}")
 
-# Основная функция
 def main():
+    # Создаем экземпляр приложения
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
 
+    # Регистрируем хендлеры
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    print("Бот запущен...")
+    print("Бот запущен... Ожидаем сообщения.")
+    # Запускаем бота в режиме Polling
     app.run_polling()
 
 if __name__ == "__main__":
     main()
-
