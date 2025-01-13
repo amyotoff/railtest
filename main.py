@@ -3,8 +3,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 import openai
 
 # Установи ключ OpenAI API
-openai.api_key = "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"
-
+openai.api_key = "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"
 # Функция для обработки команды /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Привет! Я тестовый бот. Напиши что-нибудь, и я отвечу!")
