@@ -1,9 +1,11 @@
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import openai
+import os
 
-# Установи ключ OpenAI API
-openai.api_key = "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"
+# Установи ключ OpenAI API через переменную окружения
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
 # Функция для обработки команды /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Привет! Я тестовый бот. Напиши что-нибудь!")
@@ -15,7 +17,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         # Отправка запроса к OpenAI API
         response = openai.ChatCompletion.create(
-            model="gpt-4o-mini"
+            model="gpt-4-turbo",
             messages=[{"role": "user", "content": user_message}],
         )
         bot_reply = response['choices'][0]['message']['content']  # Получение ответа
@@ -29,9 +31,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # Основная функция для запуска бота
 def main():
-    # Telegram Bot Token
-    TELEGRAM_BOT_TOKEN = "1190854549:AAFMDjUG89f3WOnBCDlXiVQlxCtwmbsLGZ4"
+    # Получаем Telegram Bot Token из переменной окружения
+    TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
+    if not TELEGRAM_BOT_TOKEN:
+        raise ValueError("TELEGRAM_BOT_TOKEN отсутствует. Установите его в переменные окружения.")
 
     # Создание бота
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
