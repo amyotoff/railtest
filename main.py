@@ -225,7 +225,7 @@ async def handle_plain_message(update: Update, context: ContextTypes.DEFAULT_TYP
 
 def main():
     # Persistence чтобы хранить контекст (user_data) между рестартами бота (опционально)
-    persistence = PicklePersistence(filename='yearcompass_bot_data')
+    persistence = PicklePersistence('yearcompass_bot_data')
 
     # Создаём приложение Telegram
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).persistence(persistence).build()
