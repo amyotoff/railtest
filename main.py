@@ -82,6 +82,19 @@ def year_compass_humorous_system_prompt():
 # -------------------------
 # ОБРАБОТЧИКИ ШАГОВ ДЛЯ СЦЕНАРИЯ
 # -------------------------
+# Обработчик текстовых сообщений
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_message = update.message.text
+    try:
+        response = openai.ChatCompletion.create(
+            model="GPT-4o-mini",  # Либо "GPT-4o-mini", если доступна
+            messages=[{"role": "user", "content": user_message}]
+        )
+        bot_reply = response["choices"][0]["message"]["content"]
+        await update.message.reply_text(bot_reply)
+    except Exception as e:
+        print(f"OpenAI Error: {e}")
+        await update.message.reply_text("Что-то пошло не так. Попробуем позже.")
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Команда /start: приветствие."""
@@ -186,11 +199,9 @@ async def final_summary(update: Update, context: CallbackContext):
 
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-40-mini",  # Или gpt-4, если доступна
-            messages=[
-                system_prompt,                # системная инструкция
-                {"role": "user", "content": user_text}
-            ]
+            response = openai.ChatCompletion.create(
+            model="GPT-4o-mini",  # Либо "GPT-4o-mini", если доступна
+            messages=[{"role": "user", "content": user_message}]
         )
         bot_reply = response["choices"][0]["message"]["content"]
     except Exception as e:
