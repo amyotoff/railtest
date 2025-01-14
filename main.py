@@ -198,7 +198,6 @@ async def final_summary(update: Update, context: CallbackContext):
     )
 
     try:
-        response = openai.ChatCompletion.create(
             response = openai.ChatCompletion.create(
             model="GPT-4o-mini",  # Либо "GPT-4o-mini", если доступна
             messages=[{"role": "user", "content": user_message}]
