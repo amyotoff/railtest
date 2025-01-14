@@ -66,8 +66,9 @@ def generate_gpt_summary(answers: list[str]) -> str:
 
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-4o-mini",
-            messages=[
+            response = openai.ChatCompletion.create(
+        model="gpt-4o-mini",
+        messages=messages
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
