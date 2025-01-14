@@ -117,7 +117,7 @@ async def yearcompass(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         response = openai.ChatCompletion.create(
-            model="GPT-4o-mini",  
+            model="gpt-4o-mini",  
 # Или "gpt-4", если у вас есть доступ
             messages=[
                 year_compass_humorous_system_prompt(),  # системный промпт
@@ -139,7 +139,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         # Простой пример ответа без YearCompass, просто эхо+AI
         response = openai.ChatCompletion.create(
-            model="GPT-4o-mini",
+            model="gpt-4o-mini",
             messages=[{"role": "user", "content": user_message}]
         )
         bot_reply = response["choices"][0]["message"]["content"]
