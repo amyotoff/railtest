@@ -1,170 +1,258 @@
 import os
 import openai
+import logging
+
 from telegram import Update
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
     MessageHandler,
     filters,
-    ContextTypes
+    ContextTypes,
+    ConversationHandler,
+    CallbackContext,
+    PicklePersistence
 )
 
-# ---------------------------------------
-# 1. Функции для Year Compass (юмористический промпт)
-# ---------------------------------------
+# -------------------------
+# Логирование на случай отладки
+# -------------------------
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', 
+    level=logging.INFO
+)
 
-def year_compass_humorous_prompt():
-    """
-    A humorous and ironic walkthrough prompt for the Year Compass methodology based on the provided PDF. 
-    This prompt helps users analyze their past year and plan the next one interactively, 
-    with a touch of humor and sarcasm. It also summarizes the session and offers 
-    personalized recommendations and planning.
-    """
-    steps = [
-        "Welcome the user with a lighthearted tone and explain the purpose of the exercise: reflecting on the past year and planning the next, be supportive but with humor and irony.",
+# -------------------------
+# ШАГИ (STATES) ДЛЯ CONVERSATIONHANDLER
+# -------------------------
+(
+    REFLECTION_1,   # Вопрос: самое яркое событие/достижение
+    REFLECTION_2,   # Привычки года
+    REFLECTION_3,   # Неудачи/незавершённый проект
+    FORGIVENESS,    # Прощение и отпускание
+    FUTURE,         # Цели и мечты на будущее
+    # SUMMARY — вызывается внутри кода, не нужен явный шаг
+) = range(5)
 
-        "**Past Year Reflection:**",
-        "1. Ask the user to recall important events and milestones from their calendar. Playfully encourage honesty, even if the best memory is something mundane.",
-        "2. Explore habits that characterized the year. Use sarcasm if the habit is procrastination or overthinking.",
-        "3. Dive into key moments of the year, such as biggest achievements, surprises, and lessons learned. Add ironic commentary if the answers seem too generic.",
-        "4. Reflect on gratitude and self-discoveries. Encourage acknowledging small wins with playful prompts like, 'Did you survive endless Zoom calls? Good job!'.",
-        "5. Highlight failures or unfinished projects but in a supportive tone, emphasizing room for improvement next year.",
-
-        "**Forgiveness and Release:**",
-        "6. Ask about forgiveness (self or others). If not applicable, humorously note how grudges might be 'great for drama but not for growth'.",
-        "7. Encourage releasing burdens before the new year. Playfully suggest letting go of things like old to-do lists or bad coffee habits.",
-
-        "**The Book or Movie of the Year:**",
-        "8. Ask for a title for their 'past year movie or book'. Prompt creativity with examples like '2024: The Saga of Spilled Coffee and Late Deadlines'.",
-
-        "**Future Year Planning:**",
-        "9. Shift focus to the upcoming year. Invite big dreams and playful optimism: 'What’s the plot twist for next year?'.",
-        "10. Explore specific goals for areas like health, career, relationships, and self-improvement, adding ironic encouragement (e.g., 'Maybe this is the year you *finally* learn to cook quinoa properly').",
-        "11. Identify three things to say 'no' to and three bold new things to try. Use humor to prompt ideas, like 'Say no to over-apologizing, yes to karaoke nights'.",
-        "12. List sources of support (people or resources) for the coming year. Playfully acknowledge the reliability of pets or coffee in tough times.",
-        "13. Encourage defining rewards for success and envisioning new experiences, such as travel or self-care splurges. Add light sarcasm, e.g., 'Treat yourself, but maybe not with a life-sized gold statue'.",
-
-        "**Summary and Recommendations:**",
-        "14. Summarize the user's reflections and plans humorously, highlighting strengths and quirky goals.",
-        "15. Offer tailored advice to maintain focus and balance in the coming year. Use a friendly yet ironic tone to keep it engaging.",
-
-        "Conclude with encouragement and humor, reminding the user that planning is great, but being adaptable and enjoying the ride matters more."
-    ]
-    return steps
-
-
-def year_compass_humorous_system_prompt():
-    """
-    Формирует системное сообщение (role='system') для ChatCompletion, 
-    которое описывает стиль бота — юмористический проводник по Year Compass.
-    """
-    steps = year_compass_humorous_prompt()
-
-    intro_text = (
-        "You are a playful, sarcastic, and humorous YearCompass guide. "
-        "Your job is to walk the user through reflecting on the past year and planning the next, "
-        "using the following steps. Keep the tone light, ironically supportive, and comedic. "
-        "Here are your guidelines:\n\n"
-    )
-
-    # Склеиваем все шаги в единый текст
-    steps_text = "\n".join(steps)
-    system_prompt_content = intro_text + steps_text
-
-    return {"role": "system", "content": system_prompt_content}
-
-
-# ---------------------------------------
-# 2. Настраиваем ключи OpenAI и Telegram
-# ---------------------------------------
-
-# Считываем «грязные» токены и чистим их от непечатаемых символов
+# -------------------------
+# ФУНКЦИЯ ДЛЯ ОЧИСТКИ ПЕРЕМЕННЫХ ОКРУЖЕНИЯ
+# -------------------------
 def _clean_env_value(value: str) -> str:
+    """Очищает строку от непечатаемых символов и пробелов по краям."""
     return "".join(ch for ch in value if ch.isprintable()).strip()
 
+# -------------------------
+# СЧИТЫВАЕМ ТОКЕНЫ
+# -------------------------
 RAW_TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_BOT_TOKEN = _clean_env_value(RAW_TELEGRAM_BOT_TOKEN)
 
 RAW_OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_API_KEY = _clean_env_value(RAW_OPENAI_API_KEY)
 
-# Присваиваем ключ OpenAI
+if not TELEGRAM_BOT_TOKEN:
+    raise ValueError("TELEGRAM_BOT_TOKEN отсутствует или пуст. Проверь настройки.")
+if not OPENAI_API_KEY:
+    raise ValueError("OPENAI_API_KEY отсутствует или пуст. Проверь настройки.")
+
 openai.api_key = OPENAI_API_KEY
 
-# Проверяем, что токены не пусты
-if not TELEGRAM_BOT_TOKEN:
-    raise ValueError("TELEGRAM_BOT_TOKEN отсутствует или пуст. Проверь настройки Railway.")
-if not openai.api_key:
-    raise ValueError("OPENAI_API_KEY отсутствует или пуст. Проверь настройки Railway.")
+# -------------------------
+# СИСТЕМНЫЙ ПРОМПТ ДЛЯ OPENAI
+# -------------------------
+def year_compass_humorous_system_prompt():
+    """
+    Возвращает системное сообщение (role='system'), в котором боту 
+    предписывается быть юмористическим ироничным «YearCompass» гидом.
+    """
+    content = (
+        "You are a supportive, playful, sarcastic, and humorous YearCompass guide. "
+        "Your job is to walk the user through reflecting on the past year and planning the next, "
+        "using an interactive approach. Collect the user’s answers and provide a final comedic summary. "
+        "Use irony and jokes, but stay supportive.\n\n"
+        "Here are your guidelines:\n\n"
+        "1) Reflect on the past year's events, habits, achievements, and failures.\n"
+        "2) Discuss forgiveness and releasing grudges.\n"
+        "3) Explore future plans and goals.\n"
+        "4) Provide a final summary with humor.\n"
+        "Be sure to keep a friendly but ironic tone.\n"
+    )
+    return {"role": "system", "content": content}
 
+# -------------------------
+# ОБРАБОТЧИКИ ШАГОВ ДЛЯ СЦЕНАРИЯ
+# -------------------------
 
-# ---------------------------------------
-# 3. Хендлеры бота
-# ---------------------------------------
-
-# Команда /start
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Команда /start: приветствие."""
     await update.message.reply_text(
-        "Привет! Я тестовый бот. Напиши что-нибудь или введи /yearcompass для начала упражнения."
+        "Привет! Сделаем Year Compass?\n"
+        "Набери /yearcompass, чтобы начать!"
     )
 
-# Команда /yearcompass — пример вызова ChatCompletion с системным промптом
-async def yearcompass(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_input = (
-        "Я хочу провести упражнение YearCompass. Помоги мне взглянуть на прошедший год "
-        "и запланировать новый."
+
+async def yearcompass_start(update: Update, context: CallbackContext):
+    """
+    Точка входа в сценарий YearCompass — спрашиваем первый вопрос (REFLECTION_1).
+    """
+    await update.message.reply_text(
+        "Начнём! Шаг 1: Вспомни самое яркое событие или достижение прошлого года. "
+        "Может, оно было грандиозным... а может и совсем нет. Поделись!"
+    )
+    return REFLECTION_1
+
+
+async def reflection_1(update: Update, context: CallbackContext):
+    """Обрабатываем ответ на шаг 1, переходим к шагу 2."""
+    user_text = update.message.text
+    context.user_data["reflection_1"] = user_text  # Сохраняем ответ
+    await update.message.reply_text(
+        "Отлично! Шаг 2: Теперь вспомни главных людей прошлого года. "
+        "Кто повлиял на тебя? На кого повлиял ты?"
+    )
+    return REFLECTION_2
+
+
+async def reflection_2(update: Update, context: CallbackContext):
+    """Обрабатываем ответ на шаг 2, переходим к шагу 3."""
+    user_text = update.message.text
+    context.user_data["reflection_2"] = user_text
+    await update.message.reply_text(
+        "Окей! Шаг 3: Назови одну главную неудачу или незавершённый проект, "
+        "который бы ты хотел отпустить. Будем смотреть на вещи трезво!"
+    )
+    return REFLECTION_3
+
+
+async def reflection_3(update: Update, context: CallbackContext):
+    """Обрабатываем ответ на шаг 3, переходим к теме FORGIVENESS."""
+    user_text = update.message.text
+    context.user_data["reflection_3"] = user_text
+    await update.message.reply_text(
+        "Понятно! Теперь поговорим о прощении (FORGIVENESS). "
+        "Есть ли что-то или кого-то, что ты хотел бы простить? "
+        "Или какие обиды оставить в прошлом?"
+    )
+    return FORGIVENESS
+
+
+async def forgiveness(update: Update, context: CallbackContext):
+    """Обрабатываем прощение, переходим к планам FUTURE."""
+    user_text = update.message.text
+    context.user_data["forgiveness"] = user_text
+    await update.message.reply_text(
+        "Хорошо! Теперь взглянем на будущее. "
+        "Какие смелые цели и мечты ты хочешь поставить на следующий год? "
+        "Какой сюрпризный поворот сюжета ожидаешь?"
+    )
+    return FUTURE
+
+
+async def future(update: Update, context: CallbackContext):
+    """
+    Обрабатываем планы на будущее, переходим к формированию сводки (summary).
+    """
+    user_text = update.message.text
+    context.user_data["future"] = user_text
+
+    # Переходим к финальному шагу — формируем summary
+    await update.message.reply_text(
+        "Отлично! Сейчас подготовлю резюме того, что мы обсудили..."
+    )
+    return await final_summary(update, context)
+
+
+async def final_summary(update: Update, context: CallbackContext):
+    """
+    Делаем сводку при помощи OpenAI, используя системный промпт + ответы.
+    Завершаем разговор ConversationHandler.
+    """
+    answers = context.user_data
+
+    # Формируем system prompt + «user context»
+    system_prompt = year_compass_humorous_system_prompt()
+
+    # Собираем пользовательские ответы в один текст
+    user_text = (
+        "Here are the user's answers to the YearCompass steps:\n"
+        f"1) Biggest event/achievement: {answers.get('reflection_1', '')}\n"
+        f"2) Memorable habits: {answers.get('reflection_2', '')}\n"
+        f"3) Unfinished project or failure: {answers.get('reflection_3', '')}\n"
+        f"4) Forgiveness/letting go: {answers.get('forgiveness', '')}\n"
+        f"5) Future goals: {answers.get('future', '')}\n\n"
+        "Now, please provide a comedic summary with some ironic commentary and a friendly, supportive tone. "
+        "End with a couple of personalized tips for next year."
     )
 
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-4o-mini",  
-# Или "gpt-4", если у вас есть доступ
+            model="gpt-40-mini",  # Или gpt-4, если доступна
             messages=[
-                year_compass_humorous_system_prompt(),  # системный промпт
-                {"role": "user", "content": user_input}
+                system_prompt,                # системная инструкция
+                {"role": "user", "content": user_text}
             ]
         )
         bot_reply = response["choices"][0]["message"]["content"]
-        await update.message.reply_text(bot_reply)
     except Exception as e:
-        print(f"OpenAI Error: {e}")
-        await update.message.reply_text(
-            "Что-то пошло не так при попытке вызвать YearCompass. Попробуем позже."
+        logging.error(f"OpenAI Error: {e}")
+        bot_reply = (
+            "Опа! Пум-пум-пум. "
+            "Попробуй позже или перезапусти /yearcompass."
         )
 
-# Обработка любых обычных сообщений
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Выводим пользователю результат
+    await update.message.reply_text(bot_reply)
+
+    # Завершаем диалог
+    return ConversationHandler.END
+
+
+# Функция, если пользователь введёт /cancel — прерываем диалог
+async def cancel(update: Update, context: CallbackContext):
+    """Если пользователь хочет прервать YearCompass-процесс."""
+    await update.message.reply_text("Окей, отменяем YearCompass. Приходи, когда будешь готов!")
+    return ConversationHandler.END
+
+
+async def handle_plain_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Если пользователь пишет что-то вне YearCompass-сценария,
+    можем просто отвечать «эхо» или как-то иначе.
+    """
     user_message = update.message.text
+    await update.message.reply_text(f"Эхо: {user_message}")
 
-    try:
-        # Простой пример ответа без YearCompass, просто эхо+AI
-        response = openai.ChatCompletion.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": user_message}]
-        )
-        bot_reply = response["choices"][0]["message"]["content"]
-        await update.message.reply_text(bot_reply)
-    except Exception as e:
-        print(f"OpenAI Error: {e}")
-        await update.message.reply_text(
-            "Что-то пошло не так. Попробуем позже."
-        )
-
-
-# ---------------------------------------
-# 4. Основная точка входа — настройка и запуск бота
-# ---------------------------------------
 
 def main():
-    # Создаем экземпляр приложения Telegram
-    app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+    # Persistence чтобы хранить контекст (user_data) между рестартами бота (опционально)
+    persistence = PicklePersistence(filename='yearcompass_bot_data')
+
+    # Создаём приложение Telegram
+    app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).persistence(persistence).build()
+
+    # Настраиваем ConversationHandler для YearCompass
+    yearcompass_conv_handler = ConversationHandler(
+        entry_points=[CommandHandler("yearcompass", yearcompass_start)],
+        states={
+            REFLECTION_1: [MessageHandler(filters.TEXT & ~filters.COMMAND, reflection_1)],
+            REFLECTION_2: [MessageHandler(filters.TEXT & ~filters.COMMAND, reflection_2)],
+            REFLECTION_3: [MessageHandler(filters.TEXT & ~filters.COMMAND, reflection_3)],
+            FORGIVENESS:  [MessageHandler(filters.TEXT & ~filters.COMMAND, forgiveness)],
+            FUTURE:       [MessageHandler(filters.TEXT & ~filters.COMMAND, future)],
+            # SUMMARY вызывается внутри future(), 
+            # поэтому в словаре states не нужен.
+        },
+        fallbacks=[CommandHandler("cancel", cancel)]
+    )
 
     # Регистрируем хендлеры
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("yearcompass", yearcompass))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(CommandHandler("start", start_command))
+    app.add_handler(yearcompass_conv_handler)
 
-    print("Бот запущен... Ожидаем сообщения.")
+    # Обработчик всех прочих текстовых сообщений
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_plain_message))
+
+    print("Бот запущен... Ожидаем сообщения. /start или /yearcompass")
     app.run_polling()
 
 
