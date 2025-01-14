@@ -224,7 +224,7 @@ class YearCompassBot:
         """Sets up and runs the bot with conversation + normal message handling."""
         # If you see "unexpected keyword argument 'filename'", 
         # use PicklePersistence('yearcompass_bot_data') instead.
-        persistence = PicklePersistence(filename='yearcompass_bot_data')
+        persistence = PicklePersistence('yearcompass_bot_data')
 
         app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).persistence(persistence).build()
 
