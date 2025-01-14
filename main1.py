@@ -112,12 +112,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def yearcompass(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_input = (
         "Я хочу провести упражнение YearCompass. Помоги мне взглянуть на прошедший год "
-        "и запланировать новый, но в шуточном и ироничном формате."
+        "и запланировать новый."
     )
 
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",  # Или "gpt-4", если у вас есть доступ
+            model="GPT-4o-mini",  
+# Или "gpt-4", если у вас есть доступ
             messages=[
                 year_compass_humorous_system_prompt(),  # системный промпт
                 {"role": "user", "content": user_input}
@@ -138,7 +139,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         # Простой пример ответа без YearCompass, просто эхо+AI
         response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
+            model="GPT-4o-mini",
             messages=[{"role": "user", "content": user_message}]
         )
         bot_reply = response["choices"][0]["message"]["content"]
