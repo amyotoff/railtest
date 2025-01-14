@@ -105,10 +105,10 @@ async def fallback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return current_question_index
 
 def main():
-    # Считываем токен из переменной окружения Railway (TELEGRAM_TOKEN)
-    bot_token = os.environ.get("TELEGRAM_TOKEN")
+    # Считываем токен из переменной окружения Railway (TELEGRAM_BOT_TOKEN)
+    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     if not bot_token:
-        raise ValueError("Не найден TELEGRAM_TOKEN в переменных окружения.")
+        raise ValueError("Не найден TELEGRAM_BOT_TOKEN в переменных окружения.")
 
     application = ApplicationBuilder().token(bot_token).build()
 
