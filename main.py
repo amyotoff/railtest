@@ -73,7 +73,7 @@ def year_compass_humorous_system_prompt():
         "1) Reflect on the past year's events, habits, achievements, and failures.\n"
         "2) Discuss forgiveness and releasing grudges.\n"
         "3) Explore future plans and goals.\n"
-        "4) Provide a final summary with humor.\n"
+        "4) Provide a final summary with support and humor.\n"
         "Be sure to keep a friendly but ironic tone.\n"
     )
     return {"role": "system", "content": content}
@@ -85,9 +85,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Если пользователь пишет что-то вне YearCompass-сценария, просто отвечаем через OpenAI (или эхо)."""
     user_message = update.message.text
     try:
-        # Замените модель на "gpt-3.5-turbo" или "gpt-4", если не имеете особой модели
+        # модель "gpt-40-mini" или "gpt-4", 
         response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
+            model="gpt-40-mini",
             messages=[{"role": "user", "content": user_message}]
         )
         bot_reply = response["choices"][0]["message"]["content"]
@@ -124,7 +124,7 @@ async def reflection_1(update: Update, context: CallbackContext):
     user_text = update.message.text
     context.user_data["reflection_1"] = user_text  # Сохраняем ответ
     await update.message.reply_text(
-        "Отлично! Шаг 2: Теперь вспомни главных людей (или привычки) прошлого года. "
+        "Отлично! Шаг 2: Теперь вспомни главных людей прошлого года. "
         "Кто повлиял на тебя? На кого повлиял ты?"
     )
     return REFLECTION_2
@@ -146,7 +146,7 @@ async def reflection_3(update: Update, context: CallbackContext):
     await update.message.reply_text(
         "Понятно! Теперь поговорим о прощении (FORGIVENESS). "
         "Есть ли что-то или кого-то, что ты хотел бы простить? "
-        "Или какие обиды оставить в прошлом?"
+        "Какие обиды оставить в прошлом?"
     )
     return FORGIVENESS
 
@@ -157,7 +157,7 @@ async def forgiveness(update: Update, context: CallbackContext):
     await update.message.reply_text(
         "Хорошо! Теперь взглянем на будущее. "
         "Какие смелые цели и мечты ты хочешь поставить на следующий год? "
-        "Какой сюрпризный поворот сюжета ожидаешь?"
+        "Какой поворот сюжета ожидаешь?"
     )
     return FUTURE
 
@@ -192,14 +192,14 @@ async def final_summary(update: Update, context: CallbackContext):
         f"3) Unfinished project or failure: {answers.get('reflection_3', '')}\n"
         f"4) Forgiveness/letting go: {answers.get('forgiveness', '')}\n"
         f"5) Future goals: {answers.get('future', '')}\n\n"
-        "Now, please provide a comedic summary with some ironic commentary and a friendly, supportive tone. "
-        "End with a couple of personalized tips for next year."
+        "Now, please provide a summary with some ironic commentary and a friendly, supportive tone. "
+        "End with a couple of empowering personalized tips for next year."
     )
 
     try:
-        # Замените модель на "gpt-3.5-turbo" или "gpt-4", если у вас есть доступ
+        # Модель "gpt-40-mini" или "gpt-4", 
         response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
+            model="gpt-40-mini",
             messages=[
                 system_prompt,                     # системный промпт
                 {"role": "user", "content": user_text}
@@ -236,7 +236,7 @@ async def handle_plain_message(update: Update, context: ContextTypes.DEFAULT_TYP
     """
     user_message = update.message.text
     # Можно вызывать ChatCompletion или просто сделать эхо:
-    await update.message.reply_text(f"Эхо: {user_message}")
+    await update.message.reply_text(f"Ты сказал {user_message}?")
 
 # -------------------------
 # ОСНОВНАЯ ФУНКЦИЯ ЗАПУСКА
