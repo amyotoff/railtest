@@ -66,13 +66,13 @@ def generate_gpt_summary(answers: list[str]) -> str:
 
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4.0-mini",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            temperature=0.7,   # Настройка «творчества»
-            max_tokens=700,    # Примерный лимит токенов в ответе
+            temperature=0.2,   # Настройка «творчества»
+            max_tokens=800,    # Примерный лимит токенов в ответе
         )
         gpt_reply = response["choices"][0]["message"]["content"]
         return gpt_reply.strip()
