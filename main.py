@@ -44,7 +44,7 @@ def setup_openai():
 
 def generate_gpt_response(prompt, system_prompt=AMYO_PERSONA, temperature=0.8, max_tokens=200):
     """
-    Генерация ответа с помощью ChatCompletion (ChatGPT) с использованием GPT-4.
+    Генерация ответа с помощью ChatCompletion (ChatGPT) с использованием GPT-4o.
     system_prompt: задаёт «персону» бота
     user_prompt: реальный вопрос / сообщение
     """
