@@ -4,6 +4,7 @@ import openai
 import requests
 import asyncio
 import io
+!pip install python-telegram-bot --upgrade
 
 from telegram import Update
 from telegram.ext import (
