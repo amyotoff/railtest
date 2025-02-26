@@ -41,7 +41,7 @@ def setup_openai():
         return False
     return True
 
-def generate_gpt_response(prompt, system_prompt=AMYO_PERSONA, temperature=0.8, max_tokens=200):
+def generate_gpt_response(prompt, system_prompt=AMYO_PERSONA, temperature=0.1, max_tokens=200):
     """
     Генерация ответа с помощью ChatCompletion (ChatGPT) с использованием GPT-4o.
     system_prompt: задаёт «персону» бота
@@ -164,8 +164,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
         f"Привет, {user_name}! Я — AmyoBot. Иногда туплю, но стараюсь!\n\n"
         "Попробуй команды:\n"
-        "/weather <город>\n"
-        "/place <тип> <город>\n"
         "/draw <описание>\n\n"
         "Или скажи что-то вроде «подскажи погоду в Риме»."
     )
@@ -176,8 +174,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Доступные команды:\n"
         "/start — приветственное сообщение\n"
         "/help — помощь\n"
-        "/weather [город] — погода в указанном городе (через Google)\n"
-        "/place [тип] [город] — рекомендую место (кофейня, бар и т.п.)\n"
         "/draw [описание] — нарисовать картинку DALL-E\n\n"
         "Можешь также просто написать: «подскажи погоду...», «нарисуй...». Я постараюсь понять."
     )
