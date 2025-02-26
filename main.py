@@ -72,6 +72,7 @@ async def generate_image(prompt):
     if not setup_openai():
         return None
     
+    # Добавляем уточнение стиля
     enhanced_prompt = f"Digital art, modern 2d aesthetic style, clear: {prompt}"
     
     try:
@@ -98,7 +99,7 @@ SERPAPI_URL = "https://serpapi.com/search"
 async def get_weather_data(city: str) -> dict:
     """
     Запрос погоды через SerpAPI (Google) и возврат сырых данных в виде dict.
-    Возвращаем структуру { 'location': ..., 'temperature': ..., 'description': ... }
+    Возвращаем структуру { 'location': ..., 'temperature': ..., 'description': ..., 'humidity': ... }
     или {}, если не удалось найти.
     """
     if not SERPAPI_KEY:
@@ -125,7 +126,7 @@ async def get_weather_data(city: str) -> dict:
             "temperature": weather_data.get("temperature", ""),
             "description": weather_data.get("description", ""),
             "precipitation": weather_data.get("precipitation", ""),
-        
+            "humidity":  weather_data.get("humidity", ""),    # Добавили влажность
             "wind": weather_data.get("wind", ""),
         }
     except Exception as e:
@@ -139,15 +140,15 @@ def generate_weather_reply(city: str, weather_dict: dict) -> str:
     """
     # Если данных нет — коротко отвечаем
     if not weather_dict:
-        return f"Не удалось найти данные о погоде в {city}. Какая-то непогода у Google..."
+        return f"Не удалось найти данные о погоде в {city}. Что-то Google прикрыл прогноз..."
 
-    # Формируем «сырой» текст, который хотим выдать ботy
+    # Формируем «сырой» текст, который хотим передать GPT
     raw_weather_text = (
         f"Город: {weather_dict['location']}\n"
         f"Температура: {weather_dict['temperature']}\n"
         f"Описание: {weather_dict['description']}\n"
+        f"Влажность: {weather_dict['humidity']}\n"
         f"Осадки: {weather_dict['precipitation']}\n"
-        
         f"Ветер: {weather_dict['wind']}"
     )
     
@@ -177,12 +178,12 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
         "Доступные команды:\n"
-        "/start — приветствие\n"
+        "/start — приветственное сообщение\n"
         "/help — помощь\n"
-        "/weather <город> — погода в городе (через Google)\n"
-        "/place <тип> <город> — рекомендую место (кофейня, бар и т.п.)\n"
-        "/draw <описание> — нарисовать картинку DALL-E\n\n"
-        "Можешь просто написать: «подскажи погоду...», «нарисуй...». Я постараюсь понять."
+        "/weather [город] — погода в указанном городе (через Google)\n"
+        "/place [тип] [город] — рекомендую место (кофейня, бар и т.п.)\n"
+        "/draw [описание] — нарисовать картинку DALL-E\n\n"
+        "Можешь также просто написать: «подскажи погоду...», «нарисуй...». Я постараюсь понять."
     )
     await update.message.reply_text(text)
 
@@ -193,134 +194,11 @@ async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     city = " ".join(context.args)
-    await update.message.reply_text(f"Ищу погоду в {city}...")
+    await update.message.reply_text(f"Ищу погоду в {city} (через Google/SerpAPI)...")
     
     weather_dict = await get_weather_data(city)
     weather_reply = generate_weather_reply(city, weather_dict)
     
     await update.message.reply_text(weather_reply)
 
-async def place_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Рекомендация места (кофейня/бар/ресторан) в городе."""
-    if len(context.args) < 2:
-        await update.message.reply_text("Формат: /place кофейня Москва")
-        return
-    
-    place_type = context.args[0]
-    city = " ".join(context.args[1:])
-    prompt = (
-        f"Порекомендуй классное место типа {place_type} в городе {city}."
-        " Коротко опиши, чем оно классное (не более 3 предложений)."
-    )
-    response = generate_gpt_response(prompt)
-    await update.message.reply_text(response)
-
-async def draw_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Генерация (DALL-E) по описанию."""
-    if not context.args:
-        await update.message.reply_text("Опиши, что нарисовать. Пример: /draw кот, играющий на гитаре")
-        return
-    
-    prompt = " ".join(context.args)
-    wait_msg = await update.message.reply_text("Рисую, нужно время...")
-    
-    image_data = await generate_image(prompt)
-    if image_data:
-        # Удаляем сообщение «Рисую»
-        await context.bot.delete_message(
-            chat_id=update.effective_chat.id,
-            message_id=wait_msg.message_id
-        )
-        # Отправляем результат
-        await context.bot.send_photo(
-            chat_id=update.effective_chat.id,
-            photo=image_data,
-            caption=f"Нарисовано по запросу: «{prompt}»"
-        )
-    else:
-        await context.bot.edit_message_text(
-            chat_id=update.effective_chat.id,
-            message_id=wait_msg.message_id,
-            text="Извини, не получилось нарисовать. Попробуй позже."
-        )
-
-# ======= ОБРАБОТЧИК СООБЩЕНИЙ (триггеры) =======
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработка текстовых сообщений (без команды)."""
-    text_lower = update.message.text.strip().lower()
-    
-    # 1. Если «подскажи погоду в ...»
-    if "подскажи погоду" in text_lower:
-        parts = text_lower.split("подскажи погоду", 1)
-        city_part = parts[1].strip()
-        if city_part.startswith("в "):
-            city_part = city_part[2:].strip()
-
-        await update.message.reply_text(f"Проверяю погодку для {city_part}...")
-        weather_dict = await get_weather_data(city_part)
-        weather_reply = generate_weather_reply(city_part, weather_dict)
-        await update.message.reply_text(weather_reply)
-        return
-
-    # 2. Если «нарисуй ...»
-    if "нарисуй" in text_lower:
-        parts = text_lower.split("нарисуй", 1)
-        draw_prompt = parts[1].strip()
-        if not draw_prompt:
-            await update.message.reply_text("Опиши, что нарисовать, например: «нарисуй мост в стиле Ван Гога»")
-            return
-        
-        wait_msg = await update.message.reply_text("Рисую, подожди...")
-        image_data = await generate_image(draw_prompt)
-        if image_data:
-            await context.bot.delete_message(
-                chat_id=update.effective_chat.id,
-                message_id=wait_msg.message_id
-            )
-            await context.bot.send_photo(
-                chat_id=update.effective_chat.id,
-                photo=image_data,
-                caption=f"Нарисовал: «{draw_prompt}»"
-            )
-        else:
-            await context.bot.edit_message_text(
-                chat_id=update.effective_chat.id,
-                message_id=wait_msg.message_id,
-                text="Не смог нарисовать. Попробуй другой запрос или позже."
-            )
-        return
-
-    # 3. Иначе — даём ироничный ответ с GPT
-    user_name = update.effective_user.first_name
-    user_prompt = (
-        f"Пользователь {user_name} написал: '{update.message.text}'. "
-        "Ответь в стиле моей роли (коротко, иронично, с метафорами)."
-    )
-    response = generate_gpt_response(user_prompt)
-    await update.message.reply_text(response)
-
-# ======= MAIN =======
-def main():
-    # Токен телеграм-бота (из env)
-    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
-    if not bot_token:
-        raise ValueError("TELEGRAM_BOT_TOKEN не найден в переменных окружения.")
-    
-    # Создаем приложение бота
-    application = ApplicationBuilder().token(bot_token).build()
-    
-    # Команды
-    application.add_handler(CommandHandler("start", start_command))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("weather", weather_command))
-    application.add_handler(CommandHandler("place", place_command))
-    application.add_handler(CommandHandler("draw", draw_command))
-    
-    # Текстовые сообщения
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    
-    # Запуск
-    application.run_polling()
-
-if __name__ == "__main__":
-    main()
+async def place_command(update: Update, context: ContextTypes.DEFAULT_TYPE
