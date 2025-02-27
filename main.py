@@ -11,6 +11,10 @@ from telegram.ext import (
     filters,
 )
 
+# Применяем nest_asyncio для разрешения ошибки вложенных event loop'ов
+import nest_asyncio
+nest_asyncio.apply()
+
 # Настройка логирования
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
