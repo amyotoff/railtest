@@ -1,7 +1,7 @@
 import os
 import logging
 import requests
-from openai import OpenAI
+import openai
 
 from telegram import Update
 from telegram.ext import (
@@ -34,38 +34,34 @@ def get_oil_price() -> str:
 
 def generate_image(prompt: str) -> str:
     """Генерирует картинку через OpenAI (dall-e-3) и возвращает URL."""
-    api_key = os.environ.get("OPENAI_API_KEY", "")
-    if not api_key:
+    openai.api_key = os.environ.get("OPENAI_API_KEY", "")
+    if not openai.api_key:
         return "Не указан OPENAI_API_KEY — не могу нарисовать картинку."
-    
     try:
-        client = OpenAI(api_key=api_key)
-        response = client.images.generate(
-            model="dall-e-3",
+        response = openai.Image.create(
             prompt=prompt,
             n=1,
-            size="1024x1024"
+            size="1024x1024",
+            model="dall-e-3"
         )
-        return response.data[0].url
+        return response["data"][0]["url"]
     except Exception as e:
         logging.error(f"Ошибка DALL·E: {e}")
         return "Извини, не получилось нарисовать картинку."
 
 def generate_chat_response(user_text: str) -> str:
     """Отправляет запрос в ChatGPT (gpt-4o) и возвращает ответ."""
-    api_key = os.environ.get("OPENAI_API_KEY", "")
-    if not api_key:
+    openai.api_key = os.environ.get("OPENAI_API_KEY", "")
+    if not openai.api_key:
         return "Не указан OPENAI_API_KEY — не могу ответить через ChatGPT."
     
     system_prompt = (
         "Ты — AmyBot, молодой креативный профессионал, который любит спешалти кофе, "
         "красивый дизайн и гаджеты. Отвечай коротко, иногда с лёгкой иронией."
     )
-    
     try:
-        client = OpenAI(api_key=api_key)
-        response = client.chat.completions.create(
-            model="gpt-4o",
+        response = openai.ChatCompletion.create(
+            model="gpt-4o",  # Убедитесь, что у вас есть доступ к этой модели, иначе используйте, например, "gpt-3.5-turbo"
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_text}
@@ -73,7 +69,7 @@ def generate_chat_response(user_text: str) -> str:
             temperature=0.7,
             max_tokens=150
         )
-        return response.choices[0].message.content
+        return response["choices"][0]["message"]["content"]
     except Exception as e:
         logging.error(f"Ошибка ChatGPT: {e}")
         return "Извини, у меня не получается ответить."
@@ -111,17 +107,12 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         reply_text = f"Биткоин: ${btc}\nНефть: ${oil} за баррель"
         await update.message.reply_text(reply_text)
     elif user_text.lower().startswith("amybot, нарисуй"):
-        await update.message.reply_text("Генерирую изображение, пожалуйста, подождите...")
-        prompt = user_text[len("amybot, нарисуй"):].strip()
+        prompt = user_text[len("AmyBot, нарисуй"):].strip()
         if not prompt:
             prompt = "что-нибудь креативное"
         img_result = generate_image(prompt)
-        if img_result.startswith("http"):
-            await update.message.reply_photo(img_result)
-        else:
-            await update.message.reply_text(img_result)
+        await update.message.reply_text(img_result)
     else:
-        await update.message.reply_text("Думаю над ответом...")
         chat_reply = generate_chat_response(user_text)
         await update.message.reply_text(chat_reply)
 
