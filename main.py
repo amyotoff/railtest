@@ -33,19 +33,24 @@ def get_oil_price() -> str:
     return "70"
 
 def generate_image(prompt: str) -> str:
-    """Генерирует картинку через OpenAI (DALL·E) и возвращает URL."""
+    """Генерирует картинку через OpenAI (dall-e-3) и возвращает URL."""
     openai.api_key = os.environ.get("OPENAI_API_KEY", "")
     if not openai.api_key:
         return "Не указан OPENAI_API_KEY — не могу нарисовать картинку."
     try:
-        response = openai.Image.create(prompt=prompt, n=1, size="512x512")
+        response = openai.Image.create(
+            prompt=prompt,
+            n=1,
+            size="1024x1024",
+            model="dall-e-3"
+        )
         return response["data"][0]["url"]
     except Exception as e:
         logging.error(f"Ошибка DALL·E: {e}")
         return "Извини, не получилось нарисовать картинку."
 
 def generate_chat_response(user_text: str) -> str:
-    """Отправляет запрос в ChatGPT и возвращает ответ."""
+    """Отправляет запрос в ChatGPT (gpt-4o) и возвращает ответ."""
     openai.api_key = os.environ.get("OPENAI_API_KEY", "")
     if not openai.api_key:
         return "Не указан OPENAI_API_KEY — не могу ответить через ChatGPT."
@@ -56,13 +61,13 @@ def generate_chat_response(user_text: str) -> str:
     )
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-4o",  # Замените на нужную модель, если требуется
+            model="gpt-4o",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_text}
             ],
-            temperature=0.8,
-            max_tokens=200
+            temperature=0.7,
+            max_tokens=150
         )
         return response["choices"][0]["message"]["content"]
     except Exception as e:
@@ -116,13 +121,13 @@ def main():
     bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     if not bot_token:
         raise ValueError("Не задан TELEGRAM_BOT_TOKEN в переменных окружения.")
-    
+
     application = ApplicationBuilder().token(bot_token).build()
-    
+
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_message))
-    
+
     application.run_polling()
 
 if __name__ == "__main__":
