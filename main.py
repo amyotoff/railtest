@@ -52,12 +52,12 @@ def generate_chat_response(user_text: str) -> str:
     )
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-4o",
+            model="gpt-3.5-turbo",  # или другая доступная вам модель
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_text}
             ],
-            temperature=0.1,
+            temperature=0.7,
             max_tokens=150
         )
         return response["choices"][0]["message"]["content"]
@@ -107,9 +107,7 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text(chat_reply)
 
 def main():
-    """
-    Точка входа: создаёт приложение бота и запускает вебхук-сервер для Railway.
-    """
+    """Точка входа: создаёт приложение бота и запускает вебхук-сервер для Railway."""
     bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     if not bot_token:
         raise ValueError("Не задан TELEGRAM_BOT_TOKEN в переменных окружения.")
@@ -128,7 +126,6 @@ def main():
 
     # Задаём путь для вебхука, например, /webhook
     url_path = "webhook"
-    # Убираем завершающий слэш у app_url, если есть
     if app_url.endswith("/"):
         app_url = app_url[:-1]
     webhook_url = f"{app_url}/{url_path}"
