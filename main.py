@@ -1,7 +1,7 @@
 import os
 import logging
 import requests
-from openai import OpenAI
+import openai
 
 from telegram import Update
 from telegram.ext import (
@@ -34,27 +34,26 @@ def get_oil_price() -> str:
 
 def generate_image(prompt: str) -> str:
     """Генерирует картинку через OpenAI (dall-e-3) и возвращает URL."""
-    api_key = os.environ.get("OPENAI_API_KEY", "")
-    if not api_key:
+    openai.api_key = os.environ.get("OPENAI_API_KEY", "")
+    if not openai.api_key:
         return "Не указан OPENAI_API_KEY — не могу нарисовать картинку."
     
     try:
-        client = OpenAI(api_key=api_key)
-        response = client.images.generate(
-            model="dall-e-3",
+        response = openai.Image.create(
             prompt=prompt,
             n=1,
-            size="1024x1024"
+            size="1024x1024",
+            model="dall-e-3"
         )
-        return response.data[0].url
+        return response["data"][0]["url"]
     except Exception as e:
         logging.error(f"Ошибка DALL·E: {e}")
         return "Извини, не получилось нарисовать картинку."
 
 def generate_chat_response(user_text: str) -> str:
     """Отправляет запрос в ChatGPT (gpt-4o) и возвращает ответ."""
-    api_key = os.environ.get("OPENAI_API_KEY", "")
-    if not api_key:
+    openai.api_key = os.environ.get("OPENAI_API_KEY", "")
+    if not openai.api_key:
         return "Не указан OPENAI_API_KEY — не могу ответить через ChatGPT."
     
     system_prompt = (
@@ -63,17 +62,16 @@ def generate_chat_response(user_text: str) -> str:
     )
     
     try:
-        client = OpenAI(api_key=api_key)
-        response = client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-4o",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_text}
             ],
-            temperature=0.9,
+            temperature=0.7,
             max_tokens=150
         )
-        return response.choices[0].message.content
+        return response["choices"][0]["message"]["content"]
     except Exception as e:
         logging.error(f"Ошибка ChatGPT: {e}")
         return "Извини, у меня не получается ответить."
