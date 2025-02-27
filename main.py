@@ -46,7 +46,18 @@ def generate_image(prompt: str) -> str:
 
 def generate_chat_response(user_text: str) -> str:
     """Отправляет запрос в ChatGPT (gpt-4o) и возвращает ответ."""
-    openai.api_key = os.environ.get("OPENAI_API_KEY", "")
+    
+    
+    
+
+
+    model="gpt-4o",
+)
+    
+    
+    client = OpenAI(
+    api_key=os.environ.get("OPENAI_API_KEY"),  # This is the default and can be omitted
+)
     if not openai.api_key:
         return "Не указан OPENAI_API_KEY — не могу ответить через ChatGPT."
     system_prompt = (
@@ -54,12 +65,13 @@ def generate_chat_response(user_text: str) -> str:
         "красивый дизайн и гаджеты. Отвечай коротко, иногда с лёгкой иронией."
     )
     try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_text}
-            ],
+        chat_completion = client.chat.completions.create(
+    messages=[
+        {
+            "role": "user",
+            "content": "Say this is a test",
+        }
+    ],
             temperature=0.3,
             max_tokens=250
         )
