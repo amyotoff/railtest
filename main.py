@@ -1,134 +1,147 @@
 import os
 import logging
-import requests
+import aiohttp
 import openai
-
 from telegram import Update
 from telegram.ext import (
     ApplicationBuilder,
-    CommandHandler,
-    MessageHandler,
     ContextTypes,
-    filters
+    MessageHandler,
+    CommandHandler,
+    filters,
 )
 
+# Настройка логирования
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 
-def get_bitcoin_price() -> str:
-    """Возвращает стоимость биткоина (USD) по CoinGecko."""
+# Получаем токены из переменных окружения (или замените на свои)
+TELEGRAM_BOT_TOKEN = os.getenv("BOT_TOKEN", "<YOUR_TELEGRAM_BOT_TOKEN>")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "<YOUR_OPENAI_API_KEY>")
+
+# Инициализация OpenAI API
+openai.api_key = OPENAI_API_KEY
+
+
+async def get_chatgpt_response(prompt: str) -> str:
+    """
+    Отправляет запрос к ChatGPT с использованием модели GPT-4 и возвращает сгенерированный ответ.
+    """
     try:
-        url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
-        response = requests.get(url, timeout=5)
-        data = response.json()
-        return str(data["bitcoin"]["usd"])
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=512
+        )
+        return response["choices"][0]["message"]["content"]
     except Exception as e:
-        logging.error(f"Ошибка при получении цены биткоина: {e}")
-        return "N/A"
+        logging.error(f"Ошибка при запросе к ChatGPT: {e}")
+        return "Произошла ошибка при обращении к ChatGPT."
 
-def get_oil_price() -> str:
-    """Заглушка для стоимости нефти."""
-    return "70"
 
-def generate_image(prompt: str) -> str:
-    """Генерирует картинку через OpenAI (dall-e-3) и возвращает URL."""
-    openai.api_key = os.environ.get("OPENAI_API_KEY", "")
-    if not openai.api_key:
-        return "Не указан OPENAI_API_KEY — не могу нарисовать картинку."
+async def generate_dalle_image(prompt: str) -> str:
+    """
+    Генерирует изображение с помощью DALL·E и возвращает URL сгенерированного изображения.
+    """
     try:
         response = openai.Image.create(
             prompt=prompt,
             n=1,
-            size="1024x1024",
-            model="dall-e-3"
+            size="512x512"
         )
-        return response["data"][0]["url"]
+        image_url = response['data'][0]['url']
+        return image_url
     except Exception as e:
-        logging.error(f"Ошибка DALL·E: {e}")
-        return "Извини, не получилось нарисовать картинку."
+        logging.error(f"Ошибка при генерации изображения: {e}")
+        return ""
 
-def generate_chat_response(user_text: str) -> str:
-    """Отправляет запрос в ChatGPT (gpt-4o) и возвращает ответ."""
-    openai.api_key = os.environ.get("OPENAI_API_KEY", "")
-    if not openai.api_key:
-        return "Не указан OPENAI_API_KEY — не могу ответить через ChatGPT."
-    
-    system_prompt = (
-        "Ты — AmyBot, молодой креативный профессионал, который любит спешалти кофе, "
-        "красивый дизайн и гаджеты. Отвечай коротко, иногда с лёгкой иронией."
-    )
+
+async def get_btc_price() -> str:
+    """
+    Получает текущую цену биткоина в долларах США через Coindesk API.
+    """
     try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4o",  # Убедитесь, что у вас есть доступ к этой модели, иначе используйте, например, "gpt-3.5-turbo"
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_text}
-            ],
-            temperature=0.7,
-            max_tokens=150
-        )
-        return response["choices"][0]["message"]["content"]
+        url = "https://api.coindesk.com/v1/bpi/currentprice/BTC.json"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                data = await response.json()
+        price = data["bpi"]["USD"]["rate"]  # строка вида '23,456.78'
+        return f"Текущая цена биткоина: {price} USD"
     except Exception as e:
-        logging.error(f"Ошибка ChatGPT: {e}")
-        return "Извини, у меня не получается ответить."
+        logging.error(f"Ошибка при запросе цены BTC: {e}")
+        return "Не удалось получить цену биткоина."
 
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик команды /start."""
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Обработчик команды /start, приветствующий пользователя.
+    """
     await update.message.reply_text(
-        "Привет, я AmyBot!\n\n"
-        "Скажи что-нибудь:\n"
-        "- Если в сообщении есть символ '$', я покажу цену биткоина и нефти.\n"
-        "- Если начнешь с 'AmyBot, нарисуй ...' — нарисую картинку.\n"
-        "- Всё остальное: отвечу через ChatGPT.\n"
-        "Приятного общения!"
+        "Привет! Я бот, который может отвечать на вопросы, генерировать изображения и сообщать цену биткоина.\n\n"
+        "• Напишите 'amybot' для обращения к ChatGPT;\n"
+        "• Используйте 'нарисуй' или 'сделай картинку' для генерации изображения;\n"
+        "• Отправьте '$' для получения цены биткоина."
     )
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик команды /help."""
-    await update.message.reply_text(
-        "Я умею:\n"
-        "- Показывать цену биткоина и нефти (сообщение с '$').\n"
-        "- Генерировать изображение (начни фразу с 'AmyBot, нарисуй').\n"
-        "- Общаться через ChatGPT по любым вопросам.\n\n"
-        "Команды:\n"
-        "/start — начать\n"
-        "/help — помощь"
-    )
 
-async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработка всех входящих текстовых сообщений (не команд)."""
-    user_text = update.message.text.strip()
+async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Главный обработчик текстовых сообщений.
     
-    if "$" in user_text:
-        btc = get_bitcoin_price()
-        oil = get_oil_price()
-        reply_text = f"Биткоин: ${btc}\nНефть: ${oil} за баррель"
-        await update.message.reply_text(reply_text)
-    elif user_text.lower().startswith("amybot, нарисуй"):
-        prompt = user_text[len("AmyBot, нарисуй"):].strip()
-        if not prompt:
-            prompt = "что-нибудь креативное"
-        img_result = generate_image(prompt)
-        await update.message.reply_text(img_result)
-    else:
-        chat_reply = generate_chat_response(user_text)
-        await update.message.reply_text(chat_reply)
+    Обрабатывает:
+      1. Сообщения, равные '$' – для получения цены биткоина.
+      2. Сообщения, содержащие 'нарисуй' или 'сделай картинку' – для генерации изображения через DALL·E.
+      3. Сообщения, содержащие 'amybot' – для обращения к ChatGPT.
+    """
+    if not update.message or not update.message.text:
+        return
 
-def main():
-    """Точка входа: создаёт приложение бота и запускает polling."""
-    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
-    if not bot_token:
-        raise ValueError("Не задан TELEGRAM_BOT_TOKEN в переменных окружения.")
+    message_text = update.message.text.lower().strip()
 
-    application = ApplicationBuilder().token(bot_token).build()
+    # 1. Если сообщение равно "$", отправляем цену биткоина
+    if message_text == "$":
+        price_text = await get_btc_price()
+        await update.message.reply_text(price_text)
+        return
 
-    application.add_handler(CommandHandler("start", start_command))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_message))
+    # 2. Если сообщение содержит ключевые слова для генерации изображения
+    if "нарисуй" in message_text or "сделай картинку" in message_text:
+        prompt_for_dalle = update.message.text
+        placeholder_msg = await update.message.reply_text("Рисую, подождите...")
+        image_url = await generate_dalle_image(prompt_for_dalle)
+        await placeholder_msg.delete()
+        if image_url:
+            await update.message.reply_photo(photo=image_url, caption="Вот ваш рисунок!")
+        else:
+            await update.message.reply_text("Не удалось сгенерировать картинку, попробуйте ещё раз.")
+        return
 
-    application.run_polling()
+    # 3. Если сообщение содержит 'amybot', обращаемся к ChatGPT
+    if "amybot" in message_text:
+        user_prompt = update.message.text.replace("amybot", "").strip()
+        if not user_prompt:
+            user_prompt = "Привет!"
+        chatgpt_answer = await get_chatgpt_response(user_prompt)
+        await update.message.reply_text(chatgpt_answer)
+
+
+async def main():
+    # Создаём и настраиваем приложение Telegram
+    application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+
+    # Регистрируем обработчики команд и сообщений
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
+
+    # Запускаем бота
+    await application.run_polling()
+
 
 if __name__ == "__main__":
-    main()
+    import asyncio
+    asyncio.run(main())
