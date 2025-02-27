@@ -60,7 +60,7 @@ def generate_chat_response(user_text: str) -> str:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_text}
             ],
-            temperature=0.1,
+            temperature=0.3,
             max_tokens=250
         )
         return response["choices"][0]["message"]["content"]
