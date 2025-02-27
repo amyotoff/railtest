@@ -142,7 +142,8 @@ async def main():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
 
-    await application.run_polling()
+    # Передаём close_loop=False, чтобы не пытаться закрыть уже работающий event loop
+    await application.run_polling(close_loop=False)
 
 
 if __name__ == "__main__":
@@ -156,4 +157,3 @@ if __name__ == "__main__":
             loop.run_forever()
         else:
             raise
-
