@@ -45,7 +45,7 @@ def generate_image(prompt: str) -> str:
         return "Извини, не получилось нарисовать картинку."
 
 def generate_chat_response(user_text: str) -> str:
-    """Отправляет запрос в ChatGPT (gpt-3.5-turbo) и возвращает ответ."""
+    """Отправляет запрос в ChatGPT (gpt-4o) и возвращает ответ."""
     openai.api_key = os.environ.get("OPENAI_API_KEY", "")
     if not openai.api_key:
         return "Не указан OPENAI_API_KEY — не могу ответить через ChatGPT."
@@ -55,13 +55,13 @@ def generate_chat_response(user_text: str) -> str:
     )
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4o",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_text}
             ],
-            temperature=0.7,
-            max_tokens=150
+            temperature=0.1,
+            max_tokens=250
         )
         return response["choices"][0]["message"]["content"]
     except Exception as e:
