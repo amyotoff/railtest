@@ -45,35 +45,24 @@ def generate_image(prompt: str) -> str:
         return "Извини, не получилось нарисовать картинку."
 
 def generate_chat_response(user_text: str) -> str:
-    """Отправляет запрос в ChatGPT (gpt-4o) и возвращает ответ."""
-    
-    
-    
-
-
-    model="gpt-4o",
-)
-    
-    
-    client = OpenAI(
-    api_key=os.environ.get("OPENAI_API_KEY"),  # This is the default and can be omitted
-)
+    """Отправляет запрос в ChatGPT и возвращает ответ."""
+    openai.api_key = os.environ.get("OPENAI_API_KEY", "")
     if not openai.api_key:
         return "Не указан OPENAI_API_KEY — не могу ответить через ChatGPT."
+    
     system_prompt = (
         "Ты — AmyBot, молодой креативный профессионал, который любит спешалти кофе, "
         "красивый дизайн и гаджеты. Отвечай коротко, иногда с лёгкой иронией."
     )
     try:
-        chat_completion = client.chat.completions.create(
-    messages=[
-        {
-            "role": "user",
-            "content": "Say this is a test",
-        }
-    ],
-            temperature=0.3,
-            max_tokens=250
+        response = openai.ChatCompletion.create(
+            model="gpt-4o",  # Замените на нужную модель, если требуется
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_text}
+            ],
+            temperature=0.8,
+            max_tokens=200
         )
         return response["choices"][0]["message"]["content"]
     except Exception as e:
@@ -107,20 +96,17 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
     """Обработка всех входящих текстовых сообщений (не команд)."""
     user_text = update.message.text.strip()
     
-    # Если сообщение содержит "$" — показываем цены
     if "$" in user_text:
         btc = get_bitcoin_price()
         oil = get_oil_price()
         reply_text = f"Биткоин: ${btc}\nНефть: ${oil} за баррель"
         await update.message.reply_text(reply_text)
-    # Если сообщение начинается с "AmyBot, нарисуй"
     elif user_text.lower().startswith("amybot, нарисуй"):
         prompt = user_text[len("AmyBot, нарисуй"):].strip()
         if not prompt:
             prompt = "что-нибудь креативное"
         img_result = generate_image(prompt)
         await update.message.reply_text(img_result)
-    # Иначе отправляем запрос в ChatGPT
     else:
         chat_reply = generate_chat_response(user_text)
         await update.message.reply_text(chat_reply)
@@ -130,14 +116,13 @@ def main():
     bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     if not bot_token:
         raise ValueError("Не задан TELEGRAM_BOT_TOKEN в переменных окружения.")
-
+    
     application = ApplicationBuilder().token(bot_token).build()
-
+    
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_message))
-
-    # Запускаем polling – бот будет опрашивать сервер Telegram
+    
     application.run_polling()
 
 if __name__ == "__main__":
