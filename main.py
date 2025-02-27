@@ -14,8 +14,6 @@ from telegram.ext import (
 
 logging.basicConfig(level=logging.INFO)
 
-# ===================== ЛОГИКА БОТА =====================
-
 def get_bitcoin_price() -> str:
     """Возвращает стоимость биткоина (USD) по CoinGecko."""
     try:
@@ -28,11 +26,11 @@ def get_bitcoin_price() -> str:
         return "N/A"
 
 def get_oil_price() -> str:
-    """Простая заглушка для нефти. В реальном проекте подключите реальный API."""
+    """Простая заглушка для стоимости нефти."""
     return "70"
 
 def generate_image(prompt: str) -> str:
-    """Генерирует картинку через OpenAI (DALL·E). Возвращает URL или сообщение об ошибке."""
+    """Генерирует картинку через OpenAI (DALL·E) и возвращает URL."""
     openai.api_key = os.environ.get("OPENAI_API_KEY", "")
     if not openai.api_key:
         return "Не указан OPENAI_API_KEY — не могу нарисовать картинку."
@@ -44,9 +42,7 @@ def generate_image(prompt: str) -> str:
         return "Извини, не получилось нарисовать картинку."
 
 def generate_chat_response(user_text: str) -> str:
-    """
-    Отправляет сообщение в ChatGPT (gpt-3.5-turbo) и возвращает ответ.
-    """
+    """Отправляет запрос в ChatGPT (gpt-3.5-turbo) и возвращает ответ."""
     openai.api_key = os.environ.get("OPENAI_API_KEY", "")
     if not openai.api_key:
         return "Не указан OPENAI_API_KEY — не могу ответить через ChatGPT."
@@ -56,7 +52,7 @@ def generate_chat_response(user_text: str) -> str:
     )
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
+            model="gpt-3.5-turbo",  # или любая доступная вам модель
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_text}
@@ -69,10 +65,8 @@ def generate_chat_response(user_text: str) -> str:
         logging.error(f"Ошибка ChatGPT: {e}")
         return "Извини, у меня не получается ответить."
 
-# ===================== ОБРАБОТЧИКИ =====================
-
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик команды /start"""
+    """Обработчик команды /start."""
     await update.message.reply_text(
         "Привет, я AmyBot!\n\n"
         "Скажи что-нибудь:\n"
@@ -83,11 +77,11 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик команды /help"""
+    """Обработчик команды /help."""
     await update.message.reply_text(
         "Я умею:\n"
-        "- Показывать цену биткоина и нефти (сообщение с '$')\n"
-        "- Генерировать изображение (начни фразу с 'AmyBot, нарисуй')\n"
+        "- Показывать цену биткоина и нефти (сообщение с '$').\n"
+        "- Генерировать изображение (начни фразу с 'AmyBot, нарисуй').\n"
         "- Общаться через ChatGPT по любым вопросам.\n\n"
         "Команды:\n"
         "/start — начать\n"
@@ -112,38 +106,32 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         chat_reply = generate_chat_response(user_text)
         await update.message.reply_text(chat_reply)
 
-# ===================== MAIN =====================
-
 def main():
-    """Точка входа. Создаёт приложение бота и запускает вебхук-сервер для Railway."""
+    """Точка входа: создаёт приложение бота и запускает вебхук-сервер для Railway."""
     bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     if not bot_token:
         raise ValueError("Не задан TELEGRAM_BOT_TOKEN в переменных окружения.")
-    
+
     app_url = os.environ.get("APP_URL")
     if not app_url:
         raise ValueError("Не задан APP_URL (адрес Railway-приложения).")
-    
+
     port = int(os.environ.get("PORT", "5000"))
 
-    # Создаём приложение бота
     application = ApplicationBuilder().token(bot_token).build()
 
-    # Регистрируем хендлеры
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_message))
 
-    # Для безопасности обычно используют токен в URL пути
-    webhook_url = f"{app_url}/{bot_token}"
+    # Запуск вебхука на корневом URL: Telegram будет слать обновления на APP_URL
     application.run_webhook(
         listen="0.0.0.0",
         port=port,
-        url_path=bot_token,
-        webhook_url=webhook_url
+        url_path="",       # слушаем корневой путь "/"
+        webhook_url=app_url  # например, "https://railtest-production-95b6.up.railway.app"
     )
-
-    logging.info(f"Bot started with webhook on {webhook_url}")
+    logging.info(f"Bot started with webhook on {app_url}")
 
 if __name__ == "__main__":
     main()
