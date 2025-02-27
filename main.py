@@ -1,4 +1,5 @@
 import os
+import sys
 import logging
 import requests
 from flask import Flask, request
@@ -18,11 +19,11 @@ app = Flask(__name__)
 # Получаем токены из переменных окружения
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-APP_URL = os.environ.get("APP_URL")  # URL вашего Railway-приложения, например: "https://имя-приложения.up.railway.app/"
+APP_URL = os.environ.get("APP_URL")  # URL Railway-приложения, например: "https://имя-приложения.up.railway.app/"
 
 if not TELEGRAM_BOT_TOKEN or not OPENAI_API_KEY:
     logger.error("Не установлены необходимые переменные окружения TELEGRAM_BOT_TOKEN или OPENAI_API_KEY")
-    exit(1)
+    sys.exit(1)
 
 # Настройка OpenAI
 openai.api_key = OPENAI_API_KEY
@@ -47,35 +48,44 @@ def get_bitcoin_price():
 def get_oil_price():
     """
     Возвращает стоимость нефти. Для примера используется фиксированное значение.
-    В реальном применении можно интегрировать API с актуальными данными.
+    В реальном проекте можно интегрироваться с реальным API для актуальных данных.
     """
     return 70  # примерная цена в долларах за баррель
 
 def handle_message(message: telegram.Message):
     """
     Обрабатывает входящие сообщения.
-    Если сообщение адресовано боту (начинается с "AmyBot" или является ответом на сообщение бота),
-    то:
-      - Если сообщение содержит "$", выводит цены биткоина и нефти.
-      - Если сообщение начинается с "AmyoBot, нарисуй", генерирует картинку через OpenAI.
-      - Иначе отправляет запрос в OpenAI Chat API с ролью AmyBot.
+
+    Логика:
+      1. Проверяем, обращено ли сообщение к боту. 
+         - Если текст начинается с "AmyBot" (регистр не важен).
+         - Или если это ответ (reply) на сообщение бота.
+      2. Если в тексте есть символ '$' — выводим стоимость биткоина и нефти.
+      3. Если текст начинается с "AmyBot, нарисуй" — генерируем картинку через OpenAI.
+      4. Иначе пересылаем запрос в модель ChatCompletion.
     """
     if not message.text:
         return
 
     text = message.text.strip()
-    # Определяем, обращено ли сообщение к боту:
-    is_addressed = text.lower().startswith("amybot") or (
-        message.reply_to_message and 
-        message.reply_to_message.from_user.username == bot.username
+    
+    # Определяем, обращено ли сообщение к боту
+    is_addressed = (
+        text.lower().startswith("amybot") or
+        (
+            message.reply_to_message 
+            and message.reply_to_message.from_user 
+            and message.reply_to_message.from_user.username == bot.username
+        )
     )
 
     if not is_addressed:
         return
 
     # Если команда для генерации изображения
-    if text.lower().startswith("amyobot, нарисуй"):
-        prompt = text[len("AmyoBot, нарисуй"):].strip()
+    # Проверяем, начинается ли сообщение с "AmyBot, нарисуй"
+    if text.lower().startswith("amybot, нарисуй"):
+        prompt = text[len("AmyBot, нарисуй"):].strip()
         if not prompt:
             prompt = "картина мечты"
         try:
@@ -91,7 +101,7 @@ def handle_message(message: telegram.Message):
             message.reply_text("Извини, не удалось нарисовать картинку.")
         return
 
-    # Если сообщение содержит символ "$" — выводим стоимость биткоина и нефти
+    # Если сообщение содержит символ '$' — выводим стоимость биткоина и нефти
     if "$" in text:
         btc_price = get_bitcoin_price()
         oil_price = get_oil_price()
@@ -99,7 +109,7 @@ def handle_message(message: telegram.Message):
         message.reply_text(reply)
         return
 
-    # Обычный режим общения через OpenAI Chat API с использованием модели "4o-mini"
+    # Обычный режим общения через OpenAI Chat API
     system_prompt = (
         "Ты — AmyBot, молодой креативный профессионал, любишь спешалти кофе, сикрет бары, "
         "красивый скандинавский дизайн и гаджеты в стиле Apple и Teenage Engineering.\n"
@@ -115,11 +125,12 @@ def handle_message(message: telegram.Message):
     ]
 
     try:
+        # Замените "4o-mini" на реальную доступную вам модель, например "gpt-3.5-turbo"
         response = openai.ChatCompletion.create(
             model="4o-mini",
             messages=messages,
-            temperature=0.7,
-            max_tokens=150
+            temperature=0,
+            max_tokens=200
         )
         answer = response['choices'][0]['message']['content']
         message.reply_text(answer)
@@ -128,29 +139,4 @@ def handle_message(message: telegram.Message):
         message.reply_text("Извини, произошла ошибка при обработке твоего запроса.")
 
 @app.route("/", methods=["POST"])
-def webhook_handler():
-    """
-    Обработчик вебхука для Telegram.
-    """
-    try:
-        update = telegram.Update.de_json(request.get_json(force=True), bot)
-        if update.message:
-            handle_message(update.message)
-    except Exception as e:
-        logger.error(f"Ошибка в webhook_handler: {e}")
-    return "ok"
-
-if __name__ == "__main__":
-    # Устанавливаем webhook, если указан APP_URL
-    if APP_URL:
-        try:
-            bot.set_webhook(APP_URL)
-            logger.info(f"Webhook установлен на {APP_URL}")
-        except Exception as e:
-            logger.error(f"Ошибка установки webhook: {e}")
-    else:
-        logger.warning("APP_URL не установлен. Webhook не настроен.")
-
-    # Запуск Flask-сервера
-    port = int(os.environ.get("PORT", "5000"))
-    app.run(host="0.0.0.0", port=port)
+def webhook_handler()
