@@ -48,21 +48,18 @@ def get_bitcoin_price():
 def get_oil_price():
     """
     Возвращает стоимость нефти. Для примера используется фиксированное значение.
-    В реальном проекте можно интегрироваться с реальным API для актуальных данных.
+    В реальном проекте используйте актуальное API для получения цены.
     """
     return 70  # примерная цена в долларах за баррель
 
 def handle_message(message: telegram.Message):
     """
     Обрабатывает входящие сообщения.
-
     Логика:
-      1. Проверяем, обращено ли сообщение к боту. 
-         - Если текст начинается с "AmyBot" (регистр не важен).
-         - Или если это ответ (reply) на сообщение бота.
-      2. Если в тексте есть символ '$' — выводим стоимость биткоина и нефти.
-      3. Если текст начинается с "AmyBot, нарисуй" — генерируем картинку через OpenAI.
-      4. Иначе пересылаем запрос в модель ChatCompletion.
+        1. Проверяем, обращено ли сообщение к боту (начинается с "AmyBot" или это reply на бота).
+        2. Если в тексте присутствует символ '$' — выводим стоимость биткоина и нефти.
+        3. Если в тексте есть "AmyBot, нарисуй" — генерируем картинку.
+        4. Иначе пересылаем запрос в OpenAI ChatCompletion (ответ в стиле AmyBot).
     """
     if not message.text:
         return
@@ -83,7 +80,6 @@ def handle_message(message: telegram.Message):
         return
 
     # Если команда для генерации изображения
-    # Проверяем, начинается ли сообщение с "AmyBot, нарисуй"
     if text.lower().startswith("amybot, нарисуй"):
         prompt = text[len("AmyBot, нарисуй"):].strip()
         if not prompt:
@@ -101,7 +97,7 @@ def handle_message(message: telegram.Message):
             message.reply_text("Извини, не удалось нарисовать картинку.")
         return
 
-    # Если сообщение содержит символ '$' — выводим стоимость биткоина и нефти
+    # Если сообщение содержит символ '$', выводим цены
     if "$" in text:
         btc_price = get_bitcoin_price()
         oil_price = get_oil_price()
@@ -125,12 +121,12 @@ def handle_message(message: telegram.Message):
     ]
 
     try:
-        # Замените "4o-mini" на реальную доступную вам модель, например "gpt-3.5-turbo"
+        # Замените "4o-mini" на реальную доступную вам модель (например, "gpt-3.5-turbo")
         response = openai.ChatCompletion.create(
             model="4o-mini",
             messages=messages,
-            temperature=0,
-            max_tokens=200
+            temperature=0.7,
+            max_tokens=150
         )
         answer = response['choices'][0]['message']['content']
         message.reply_text(answer)
@@ -139,4 +135,29 @@ def handle_message(message: telegram.Message):
         message.reply_text("Извини, произошла ошибка при обработке твоего запроса.")
 
 @app.route("/", methods=["POST"])
-def webhook_handler()
+def webhook_handler():
+    """
+    Обработчик вебхука для Telegram: формируем объект Update и передаем в handle_message.
+    """
+    try:
+        update = telegram.Update.de_json(request.get_json(force=True), bot)
+        if update.message:
+            handle_message(update.message)
+    except Exception as e:
+        logger.error(f"Ошибка в webhook_handler: {e}")
+    return "ok"
+
+if __name__ == "__main__":
+    # Устанавливаем webhook, если указан APP_URL
+    if APP_URL:
+        try:
+            bot.set_webhook(APP_URL)
+            logger.info(f"Webhook установлен на {APP_URL}")
+        except Exception as e:
+            logger.error(f"Ошибка установки webhook: {e}")
+    else:
+        logger.warning("APP_URL не установлен. Webhook не настроен.")
+
+    # Запуск Flask-сервера
+    port = int(os.environ.get("PORT", "5000"))
+    app.run(host="0.0.0.0", port=port)
