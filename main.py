@@ -2,17 +2,18 @@ import os
 import logging
 import aiohttp
 import openai
+import nest_asyncio
+
 from telegram import Update
 from telegram.ext import (
     ApplicationBuilder,
     ContextTypes,
-    MessageHandler,
     CommandHandler,
+    MessageHandler,
     filters,
 )
 
-# Применяем nest_asyncio для разрешения ошибки вложенных event loop'ов
-import nest_asyncio
+# Применяем nest_asyncio для разрешения проблемы с вложенными event loop'ами
 nest_asyncio.apply()
 
 # Настройка логирования
@@ -21,25 +22,12 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-# Получаем токены из переменных окружения (или замените на свои)
+# Получаем токены из переменных окружения
 TELEGRAM_BOT_TOKEN = os.getenv("BOT_TOKEN", "<YOUR_TELEGRAM_BOT_TOKEN>")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "<YOUR_OPENAI_API_KEY>")
 
 # Инициализация OpenAI API
 openai.api_key = OPENAI_API_KEY
-
-if __name__ == "__main__":
-    import asyncio
-    try:
-        asyncio.run(main())
-    except RuntimeError as e:
-        if "already running" in str(e):
-            loop = asyncio.get_event_loop()
-            loop.create_task(main())
-            loop.run_forever()
-        else:
-            raise
-
 
 
 async def get_chatgpt_response(prompt: str) -> str:
@@ -49,9 +37,7 @@ async def get_chatgpt_response(prompt: str) -> str:
     try:
         response = openai.ChatCompletion.create(
             model="gpt-4",
-            messages=[
-                {"role": "user", "content": prompt}
-            ],
+            messages=[{"role": "user", "content": prompt}],
             temperature=0.7,
             max_tokens=512
         )
@@ -148,17 +134,26 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def main():
-    # Создаём и настраиваем приложение Telegram
+    """
+    Основная функция для создания и запуска приложения Telegram.
+    """
     application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
 
-    # Регистрируем обработчики команд и сообщений
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
 
-    # Запускаем бота
     await application.run_polling()
 
 
 if __name__ == "__main__":
     import asyncio
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except RuntimeError as e:
+        if "already running" in str(e):
+            loop = asyncio.get_event_loop()
+            loop.create_task(main())
+            loop.run_forever()
+        else:
+            raise
+
