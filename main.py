@@ -12,7 +12,6 @@ from telegram.ext import (
     filters
 )
 
-# Уровень логирования (при желании можно сделать WARNING, чтобы не засорять логи)
 logging.basicConfig(level=logging.INFO)
 
 # ===================== ЛОГИКА БОТА =====================
@@ -33,11 +32,10 @@ def get_oil_price() -> str:
     return "70"
 
 def generate_image(prompt: str) -> str:
-    """Генерация картинки через OpenAI (DALL·E). Возвращает URL или сообщение об ошибке."""
+    """Генерирует картинку через OpenAI (DALL·E). Возвращает URL или сообщение об ошибке."""
     openai.api_key = os.environ.get("OPENAI_API_KEY", "")
     if not openai.api_key:
         return "Не указан OPENAI_API_KEY — не могу нарисовать картинку."
-
     try:
         response = openai.Image.create(prompt=prompt, n=1, size="512x512")
         return response["data"][0]["url"]
@@ -47,21 +45,18 @@ def generate_image(prompt: str) -> str:
 
 def generate_chat_response(user_text: str) -> str:
     """
-    Отправляет сообщение в ChatGPT (gpt-3.5-turbo или другую модель)
-    и возвращает ответ. 
+    Отправляет сообщение в ChatGPT (gpt-3.5-turbo) и возвращает ответ.
     """
     openai.api_key = os.environ.get("OPENAI_API_KEY", "")
     if not openai.api_key:
         return "Не указан OPENAI_API_KEY — не могу ответить через ChatGPT."
-
     system_prompt = (
         "Ты — AmyBot, молодой креативный профессионал, который любит спешалти кофе, "
         "красивый дизайн и гаджеты. Отвечай коротко, иногда иронично."
     )
-
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",  # Или другой, доступный вам
+            model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_text}
@@ -77,22 +72,18 @@ def generate_chat_response(user_text: str) -> str:
 # ===================== ОБРАБОТЧИКИ =====================
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Обработчик команды /start
-    """
+    """Обработчик команды /start"""
     await update.message.reply_text(
         "Привет, я AmyBot!\n\n"
         "Скажи что-нибудь:\n"
-        "- В сообщении есть символ '$'? Я покажу цену биткоина и нефти.\n"
-        "- 'AmyBot, нарисуй ...' — нарисую картинку.\n"
-        "- Всё остальное: ответ через ChatGPT.\n"
+        "- Если в сообщении есть символ '$', я покажу цену биткоина и нефти.\n"
+        "- Если начнешь с 'AmyBot, нарисуй ...' — нарисую картинку.\n"
+        "- Всё остальное: отвечу через ChatGPT.\n"
         "Приятного общения!"
     )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Обработчик команды /help
-    """
+    """Обработчик команды /help"""
     await update.message.reply_text(
         "Я умею:\n"
         "- Показывать цену биткоина и нефти (сообщение с '$')\n"
@@ -104,34 +95,27 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Обработка обычных текстовых сообщений (не команд).
-    """
+    """Обработка всех входящих текстовых сообщений (не команд)."""
     user_text = update.message.text.strip()
     if "$" in user_text:
-        # Показываем биткоин и нефть
         btc = get_bitcoin_price()
         oil = get_oil_price()
         reply_text = f"Биткоин: ${btc}\nНефть: ${oil} за баррель"
         await update.message.reply_text(reply_text)
     elif user_text.lower().startswith("amybot, нарисуй"):
-        # Генерация картинки через DALL·E
         prompt = user_text[len("AmyBot, нарисуй"):].strip()
         if not prompt:
             prompt = "что-нибудь креативное"
         img_result = generate_image(prompt)
         await update.message.reply_text(img_result)
     else:
-        # Общение через ChatGPT
         chat_reply = generate_chat_response(user_text)
         await update.message.reply_text(chat_reply)
 
 # ===================== MAIN =====================
 
 def main():
-    """
-    Точка входа. Создаёт приложение бота и запускает webhook-сервер на Railway.
-    """
+    """Точка входа. Создаёт приложение бота и запускает вебхук-сервер для Railway."""
     bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     if not bot_token:
         raise ValueError("Не задан TELEGRAM_BOT_TOKEN в переменных окружения.")
@@ -139,30 +123,27 @@ def main():
     app_url = os.environ.get("APP_URL")
     if not app_url:
         raise ValueError("Не задан APP_URL (адрес Railway-приложения).")
-
-    # Получаем порт (Railway передаёт в переменной PORT)
+    
     port = int(os.environ.get("PORT", "5000"))
 
     # Создаём приложение бота
     application = ApplicationBuilder().token(bot_token).build()
 
-    # Регистрируем команды
+    # Регистрируем хендлеры
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_message))
 
-    # Регистрируем обработчик всех остальных текстовых сообщений
-    text_handler = MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_message)
-    application.add_handler(text_handler)
-
-    # Запускаем вебхук на 0.0.0.0:<port>, 
-    # при этом Telegram будет стучаться на app_url (https://...)
+    # Для безопасности обычно используют токен в URL пути
+    webhook_url = f"{app_url}/{bot_token}"
     application.run_webhook(
         listen="0.0.0.0",
         port=port,
-        webhook_url=app_url
+        url_path=bot_token,
+        webhook_url=webhook_url
     )
 
-    logging.info(f"Bot started with webhook on {app_url}")
+    logging.info(f"Bot started with webhook on {webhook_url}")
 
 if __name__ == "__main__":
     main()
