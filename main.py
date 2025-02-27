@@ -75,7 +75,6 @@ def handle_message(message: telegram.Message):
 
     # Если команда для генерации изображения
     if text.lower().startswith("amyobot, нарисуй"):
-        # Извлекаем описание для генерации изображения, если оно задано
         prompt = text[len("AmyoBot, нарисуй"):].strip()
         if not prompt:
             prompt = "картина мечты"
