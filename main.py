@@ -12,7 +12,10 @@ from telegram.ext import (
     filters
 )
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 
 def get_bitcoin_price() -> str:
     """Возвращает стоимость биткоина (USD) по CoinGecko."""
@@ -52,7 +55,7 @@ def generate_chat_response(user_text: str) -> str:
     )
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",  # или другая доступная вам модель
+            model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_text}
@@ -91,32 +94,30 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработка всех входящих текстовых сообщений (не команд)."""
     user_text = update.message.text.strip()
+    
+    # Если сообщение содержит "$" — показываем цены
     if "$" in user_text:
         btc = get_bitcoin_price()
         oil = get_oil_price()
         reply_text = f"Биткоин: ${btc}\nНефть: ${oil} за баррель"
         await update.message.reply_text(reply_text)
+    # Если сообщение начинается с "AmyBot, нарисуй"
     elif user_text.lower().startswith("amybot, нарисуй"):
         prompt = user_text[len("AmyBot, нарисуй"):].strip()
         if not prompt:
             prompt = "что-нибудь креативное"
         img_result = generate_image(prompt)
         await update.message.reply_text(img_result)
+    # Иначе отправляем запрос в ChatGPT
     else:
         chat_reply = generate_chat_response(user_text)
         await update.message.reply_text(chat_reply)
 
 def main():
-    """Точка входа: создаёт приложение бота и запускает вебхук-сервер для Railway."""
+    """Точка входа: создаёт приложение бота и запускает polling."""
     bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     if not bot_token:
         raise ValueError("Не задан TELEGRAM_BOT_TOKEN в переменных окружения.")
-    
-    app_url = os.environ.get("APP_URL")
-    if not app_url:
-        raise ValueError("Не задан APP_URL (адрес Railway-приложения).")
-    
-    port = int(os.environ.get("PORT", "5000"))
 
     application = ApplicationBuilder().token(bot_token).build()
 
@@ -124,19 +125,8 @@ def main():
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_message))
 
-    # Задаём путь для вебхука, например, /webhook
-    url_path = "webhook"
-    if app_url.endswith("/"):
-        app_url = app_url[:-1]
-    webhook_url = f"{app_url}/{url_path}"
-
-    application.run_webhook(
-        listen="0.0.0.0",
-        port=port,
-        url_path=url_path,
-        webhook_url=webhook_url
-    )
-    logging.info(f"Bot started with webhook on {webhook_url}")
+    # Запускаем polling – бот будет опрашивать сервер Telegram
+    application.run_polling()
 
 if __name__ == "__main__":
     main()
