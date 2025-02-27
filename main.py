@@ -28,6 +28,19 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "<YOUR_OPENAI_API_KEY>")
 # Инициализация OpenAI API
 openai.api_key = OPENAI_API_KEY
 
+if __name__ == "__main__":
+    import asyncio
+    try:
+        asyncio.run(main())
+    except RuntimeError as e:
+        if "already running" in str(e):
+            loop = asyncio.get_event_loop()
+            loop.create_task(main())
+            loop.run_forever()
+        else:
+            raise
+
+
 
 async def get_chatgpt_response(prompt: str) -> str:
     """
