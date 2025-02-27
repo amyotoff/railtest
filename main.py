@@ -26,7 +26,7 @@ def get_bitcoin_price() -> str:
         return "N/A"
 
 def get_oil_price() -> str:
-    """Простая заглушка для стоимости нефти."""
+    """Заглушка для стоимости нефти."""
     return "70"
 
 def generate_image(prompt: str) -> str:
@@ -48,11 +48,11 @@ def generate_chat_response(user_text: str) -> str:
         return "Не указан OPENAI_API_KEY — не могу ответить через ChatGPT."
     system_prompt = (
         "Ты — AmyBot, молодой креативный профессионал, который любит спешалти кофе, "
-        "красивый дизайн и гаджеты. Отвечай коротко, иногда иронично."
+        "красивый дизайн и гаджеты. Отвечай коротко, иногда с лёгкой иронией."
     )
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",  # или любая доступная вам модель
+            model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_text}
@@ -107,15 +107,17 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text(chat_reply)
 
 def main():
-    """Точка входа: создаёт приложение бота и запускает вебхук-сервер для Railway."""
+    """
+    Точка входа: создаёт приложение бота и запускает вебхук-сервер для Railway.
+    """
     bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     if not bot_token:
         raise ValueError("Не задан TELEGRAM_BOT_TOKEN в переменных окружения.")
-
+    
     app_url = os.environ.get("APP_URL")
     if not app_url:
         raise ValueError("Не задан APP_URL (адрес Railway-приложения).")
-
+    
     port = int(os.environ.get("PORT", "5000"))
 
     application = ApplicationBuilder().token(bot_token).build()
@@ -124,14 +126,20 @@ def main():
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_message))
 
-    # Запуск вебхука на корневом URL: Telegram будет слать обновления на APP_URL
+    # Задаём путь для вебхука, например, /webhook
+    url_path = "webhook"
+    # Убираем завершающий слэш у app_url, если есть
+    if app_url.endswith("/"):
+        app_url = app_url[:-1]
+    webhook_url = f"{app_url}/{url_path}"
+
     application.run_webhook(
         listen="0.0.0.0",
         port=port,
-        url_path="",       # слушаем корневой путь "/"
-        webhook_url=app_url  # например, "https://railtest-production-95b6.up.railway.app"
+        url_path=url_path,
+        webhook_url=webhook_url
     )
-    logging.info(f"Bot started with webhook on {app_url}")
+    logging.info(f"Bot started with webhook on {webhook_url}")
 
 if __name__ == "__main__":
     main()
