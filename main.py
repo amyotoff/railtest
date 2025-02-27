@@ -55,7 +55,7 @@ def generate_chat_response(user_text: str) -> str:
     )
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-4o",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_text}
