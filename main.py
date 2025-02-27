@@ -52,12 +52,12 @@ def generate_chat_response(user_text: str) -> str:
     )
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4o",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_text}
             ],
-            temperature=0.7,
+            temperature=0.1,
             max_tokens=150
         )
         return response["choices"][0]["message"]["content"]
